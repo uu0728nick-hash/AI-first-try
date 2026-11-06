@@ -169,6 +169,26 @@
     .eyebrow { color: var(--cyan); font-size: 10px; font-weight: 800; letter-spacing: .25em; }
     h1 { margin: 13px 0 10px; font-size: clamp(29px, 5vw, 43px); letter-spacing: -.04em; }
     .description { max-width: 335px; margin: 0 auto; color: #a4aec1; font-size: 13px; line-height: 1.8; }
+    .settings {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      max-width: 340px;
+      margin: 20px auto 0;
+      text-align: left;
+    }
+    .setting { display: grid; gap: 6px; color: #a4aec1; font-size: 11px; }
+    .setting input {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid rgba(154, 168, 194, .28);
+      border-radius: 7px;
+      color: #f3f5ff;
+      background: rgba(8, 12, 22, .7);
+      font: inherit;
+    }
+    .setting input:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+    .edpi-note { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
     .primary-button {
       min-width: 190px;
       margin-top: 24px;
@@ -186,6 +206,7 @@
     }
 
     .primary-button:hover { transform: translateY(-2px); background: #83ffe9; box-shadow: 0 12px 30px rgba(98, 244, 220, .26); }
+    .primary-button:disabled { cursor: wait; opacity: .7; transform: none; }
     .primary-button:focus-visible { outline: 2px solid white; outline-offset: 4px; }
     .result-grid { display: flex; justify-content: center; gap: 34px; margin: 22px 0 0; }
     .result-grid strong { display: block; margin-top: 6px; font-size: 22px; }
@@ -200,6 +221,31 @@
     .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
     .hit-flash { position: absolute; z-index: 4; width: 12px; height: 12px; border: 2px solid var(--cyan); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; animation: flash .3s ease-out forwards; }
     .miss-flash { position: absolute; z-index: 4; color: #ff7185; font-size: 19px; font-weight: 700; transform: translate(-50%, -50%); pointer-events: none; animation: miss .35s ease-out forwards; }
+    .crosshair {
+      position: absolute;
+      z-index: 3;
+      top: 0;
+      left: 0;
+      width: 24px;
+      height: 24px;
+      border: 1px solid var(--cyan);
+      border-radius: 50%;
+      box-shadow: 0 0 10px rgba(98, 244, 220, .65);
+      transform: translate3d(0, 0, 0) translate(-50%, -50%);
+      will-change: transform;
+      pointer-events: none;
+    }
+    .crosshair::before, .crosshair::after {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      content: "";
+      background: var(--cyan);
+      transform: translate(-50%, -50%);
+    }
+    .crosshair::before { width: 32px; height: 1px; }
+    .crosshair::after { width: 1px; height: 32px; }
+    #crosshair[hidden] { display: none; }
 
     @keyframes target-in { from { opacity: 0; scale: .65; } to { opacity: 1; scale: 1; } }
     @keyframes flash { to { opacity: 0; scale: 3.2; } }
@@ -245,27 +291,42 @@
         <div class="card">
           <div class="eyebrow" id="eyebrow">READY WHEN YOU ARE</div>
           <h1 id="headline">準備好瞄準了嗎？</h1>
-          <p class="description" id="description">在 30 秒內盡可能命中目標。快速、精準，找回你的手感。</p>
+          <p class="description" id="description">在 30 秒內用準星瞄準並命中目標。快速、精準，找回你的手感。</p>
+          <div class="settings" aria-label="滑鼠設定">
+            <label class="setting" for="dpi-input">滑鼠 DPI
+              <input id="dpi-input" type="number" min="100" max="3200" step="100" value="800" inputmode="numeric">
+            </label>
+            <label class="setting" for="sensitivity-input">VALORANT 靈敏度
+              <input id="sensitivity-input" type="number" min="0.001" max="10" step="0.001" value="0.35" inputmode="decimal">
+            </label>
+            <p class="edpi-note">有效 DPI（eDPI）：<strong id="edpi-value">280</strong>。DPI 是你自行填寫的硬體設定值；原始輸入模式會依 eDPI 換算準星速度。</p>
+          </div>
           <div class="result-grid" id="results" hidden></div>
           <div class="best-note" id="best-note"></div>
           <button class="primary-button" id="start-button" type="button">開始訓練&nbsp; →</button>
         </div>
       </div>
+      <div class="crosshair" id="crosshair" hidden aria-hidden="true"></div>
     </section>
 
     <div class="progress-track" aria-hidden="true"><div class="progress" id="progress"></div></div>
     <footer class="bottom-bar">
       <div class="hint"><span class="dot"></span><span id="status">準備就緒</span></div>
-      <div><kbd>點擊</kbd> 命中目標 <span aria-hidden="true">&nbsp;·&nbsp;</span> <kbd>Esc</kbd> 中止</div>
+      <div><kbd>滑鼠移動</kbd> 瞄準 <span aria-hidden="true">&nbsp;·&nbsp;</span> <kbd>左鍵</kbd> 射擊 <span aria-hidden="true">&nbsp;·&nbsp;</span> <kbd>Esc</kbd> 中止</div>
     </footer>
   </main>
   <script>
     (() => {
       const ROUND_MS = 30_000;
       const TARGET_LIFETIME_MS = 1_800;
+      const POINTER_LOCK_SETTLE_MS = 150;
       const arena = document.querySelector("#arena");
       const overlay = document.querySelector("#overlay");
       const startButton = document.querySelector("#start-button");
+      const dpiInput = document.querySelector("#dpi-input");
+      const sensitivityInput = document.querySelector("#sensitivity-input");
+      const edpiValue = document.querySelector("#edpi-value");
+      const crosshair = document.querySelector("#crosshair");
       const timeDisplay = document.querySelector("#time");
       const hitsDisplay = document.querySelector("#hits");
       const accuracyDisplay = document.querySelector("#accuracy");
@@ -280,12 +341,30 @@
 
       let active = false;
       let startedAt = 0;
+      let lastStatsUpdate = 0;
       let hits = 0;
       let misses = 0;
       let targetTimer = 0;
       let frame = 0;
+      let aimFrame = 0;
       let target = null;
+      let targetX = 0;
+      let targetY = 0;
+      let targetRadius = 0;
+      let crosshairX = 0;
+      let crosshairY = 0;
+      let pendingMouseX = 0;
+      let pendingMouseY = 0;
+      let ignoreMouseUntil = 0;
+      let rawInputRequested = false;
+      let arenaWidth = 0;
+      let arenaHeight = 0;
       let best = loadBest();
+      const settings = loadSettings();
+
+      dpiInput.value = String(settings.dpi);
+      sensitivityInput.value = String(settings.sensitivity);
+      updateEdpi();
 
       function loadBest() {
         try {
@@ -305,6 +384,45 @@
         }
       }
 
+      function loadSettings() {
+        const defaults = { dpi: 800, sensitivity: 0.35 };
+        try {
+          const value = JSON.parse(localStorage.getItem("aim-lab-settings") || "null");
+          if (!value || typeof value !== "object") return defaults;
+          return {
+            dpi: Number.isFinite(value.dpi) && value.dpi >= 100 && value.dpi <= 3200 ? value.dpi : defaults.dpi,
+            sensitivity: Number.isFinite(value.sensitivity) && value.sensitivity >= 0.001 && value.sensitivity <= 10 ? value.sensitivity : defaults.sensitivity
+          };
+        } catch (error) {
+          console.warn("無法讀取滑鼠設定。", error);
+          return defaults;
+        }
+      }
+
+      function saveSettings() {
+        try {
+          localStorage.setItem("aim-lab-settings", JSON.stringify(settings));
+        } catch (error) {
+          console.warn("無法儲存滑鼠設定。", error);
+        }
+      }
+
+      function updateEdpi() {
+        const dpi = dpiInput.valueAsNumber;
+        const sensitivity = sensitivityInput.valueAsNumber;
+        const valid = Number.isFinite(dpi) && dpi >= 100 && dpi <= 3200 &&
+          Number.isFinite(sensitivity) && sensitivity >= 0.001 && sensitivity <= 10;
+        edpiValue.textContent = valid ? String(Math.round(dpi * sensitivity)) : "—";
+        return valid;
+      }
+
+      function storeSettings() {
+        if (!updateEdpi()) return;
+        settings.dpi = dpiInput.valueAsNumber;
+        settings.sensitivity = sensitivityInput.valueAsNumber;
+        saveSettings();
+      }
+
       function updateStats(remainingMs) {
         const elapsedMs = Math.max(0, ROUND_MS - remainingMs);
         const attempts = hits + misses;
@@ -319,29 +437,22 @@
         if (!active) return;
         if (target) target.remove();
         const bounds = arena.getBoundingClientRect();
+        arenaWidth = bounds.width;
+        arenaHeight = bounds.height;
         const size = Math.round(Math.max(34, Math.min(54, bounds.width * .075)));
         const padding = size / 2 + 20;
         const x = padding + Math.random() * Math.max(1, bounds.width - padding * 2);
         const y = padding + Math.random() * Math.max(1, bounds.height - padding * 2);
-        target = document.createElement("button");
-        target.type = "button";
+        targetX = x;
+        targetY = y;
+        targetRadius = size / 2;
+        target = document.createElement("div");
         target.className = "target";
         target.style.setProperty("--size", `${size}px`);
         target.style.left = `${x}px`;
         target.style.top = `${y}px`;
-        target.setAttribute("aria-label", "命中目標");
+        target.setAttribute("aria-hidden", "true");
         target.innerHTML = '<span class="target-ring" aria-hidden="true"></span>';
-        target.addEventListener("click", (event) => {
-          event.stopPropagation();
-          if (!active) return;
-          hits += 1;
-          showFeedback(event.clientX, event.clientY, true);
-          updateStats(Math.max(0, ROUND_MS - (performance.now() - startedAt)));
-          target.remove();
-          target = null;
-          clearTimeout(targetTimer);
-          placeTarget();
-        }, { once: true });
         arena.append(target);
         targetTimer = window.setTimeout(() => {
           if (!active || !target) return;
@@ -354,12 +465,11 @@
       }
 
       function showFeedback(clientX, clientY, isHit) {
-        const rect = arena.getBoundingClientRect();
         const mark = document.createElement("span");
         mark.className = isHit ? "hit-flash" : "miss-flash";
         mark.textContent = isHit ? "" : "×";
-        mark.style.left = `${clientX - rect.left}px`;
-        mark.style.top = `${clientY - rect.top}px`;
+        mark.style.left = `${clientX}px`;
+        mark.style.top = `${clientY}px`;
         arena.append(mark);
         window.setTimeout(() => mark.remove(), 400);
       }
@@ -367,7 +477,10 @@
       function tick(now) {
         if (!active) return;
         const remaining = Math.max(0, ROUND_MS - (now - startedAt));
-        updateStats(remaining);
+        if (now - lastStatsUpdate >= 100 || remaining <= 0) {
+          updateStats(remaining);
+          lastStatsUpdate = now;
+        }
         if (remaining <= 0) {
           finishRound();
           return;
@@ -380,8 +493,18 @@
         hits = 0;
         misses = 0;
         startedAt = performance.now();
+        lastStatsUpdate = startedAt;
         overlay.hidden = true;
         arena.classList.add("is-playing");
+        const bounds = arena.getBoundingClientRect();
+        arenaWidth = bounds.width;
+        arenaHeight = bounds.height;
+        crosshairX = arenaWidth / 2;
+        crosshairY = arenaHeight / 2;
+        pendingMouseX = 0;
+        pendingMouseY = 0;
+        crosshair.style.transform = `translate3d(${crosshairX}px, ${crosshairY}px, 0) translate(-50%, -50%)`;
+        crosshair.hidden = false;
         status.textContent = "訓練中 — 保持專注";
         updateStats(ROUND_MS);
         placeTarget();
@@ -392,10 +515,16 @@
         if (!active) return;
         active = false;
         cancelAnimationFrame(frame);
+        cancelAnimationFrame(aimFrame);
+        aimFrame = 0;
+        pendingMouseX = 0;
+        pendingMouseY = 0;
         clearTimeout(targetTimer);
         if (target) target.remove();
         target = null;
+        crosshair.hidden = true;
         arena.classList.remove("is-playing");
+        if (document.pointerLockElement === arena) document.exitPointerLock();
         const attempts = hits + misses;
         const accuracy = attempts ? Math.round(hits / attempts * 100) : 0;
         const newRecord = hits > best;
@@ -416,14 +545,125 @@
         startButton.focus();
       }
 
-      arena.addEventListener("click", (event) => {
-        if (!active || event.target.closest(".target")) return;
-        misses += 1;
-        showFeedback(event.clientX, event.clientY, false);
+      function handlePointerLockError(error) {
+        startButton.disabled = false;
+        status.textContent = "無法啟用滑鼠瞄準，請允許頁面鎖定滑鼠";
+        if (error) console.warn("無法啟用滑鼠瞄準。", error);
+      }
+
+      function requestPointerLock(useRawInput) {
+        rawInputRequested = useRawInput;
+        try {
+          const request = useRawInput
+            ? arena.requestPointerLock({ unadjustedMovement: true })
+            : arena.requestPointerLock();
+          if (request && typeof request.catch === "function") {
+            request.catch((error) => {
+              if (useRawInput && (error.name === "NotSupportedError" || error.name === "TypeError")) {
+                rawInputRequested = false;
+                status.textContent = "瀏覽器不支援原始輸入，改用一般滑鼠模式…";
+                requestPointerLock(false);
+                return;
+              }
+              handlePointerLockError(error);
+            });
+          }
+        } catch (error) {
+          if (useRawInput && error instanceof TypeError) {
+            rawInputRequested = false;
+            status.textContent = "瀏覽器不支援原始輸入，改用一般滑鼠模式…";
+            requestPointerLock(false);
+            return;
+          }
+          handlePointerLockError(error);
+        }
+      }
+
+      function requestAim() {
+        if (!updateEdpi()) {
+          status.textContent = "請輸入有效的 DPI（100–3200）與靈敏度（0.001–10）";
+          return;
+        }
+        storeSettings();
+        if (typeof arena.requestPointerLock !== "function") {
+          status.textContent = "此瀏覽器不支援滑鼠瞄準模式";
+          return;
+        }
+        startButton.disabled = true;
+        status.textContent = "正在啟用原始滑鼠輸入…";
+        requestPointerLock(true);
+      }
+
+      arena.addEventListener("mousedown", (event) => {
+        if (!active || event.button !== 0) return;
+        event.preventDefault();
+        const hit = target && Math.hypot(crosshairX - targetX, crosshairY - targetY) <= targetRadius;
+        if (hit) {
+          hits += 1;
+          showFeedback(crosshairX, crosshairY, true);
+          target.remove();
+          target = null;
+          clearTimeout(targetTimer);
+          placeTarget();
+        } else {
+          misses += 1;
+          showFeedback(crosshairX, crosshairY, false);
+        }
         updateStats(Math.max(0, ROUND_MS - (performance.now() - startedAt)));
       });
 
-      startButton.addEventListener("click", startRound);
+      document.addEventListener("mousemove", (event) => {
+        if (!active || document.pointerLockElement !== arena) return;
+        if (performance.now() < ignoreMouseUntil) return;
+        pendingMouseX += event.movementX;
+        pendingMouseY += event.movementY;
+        if (!aimFrame) aimFrame = requestAnimationFrame(updateAim);
+      });
+
+      function updateAim() {
+        aimFrame = 0;
+        if (!active) return;
+        const multiplier = rawInputRequested
+          ? settings.dpi * settings.sensitivity / 800
+          : settings.sensitivity;
+        const deltaX = pendingMouseX * multiplier;
+        const deltaY = pendingMouseY * multiplier;
+        pendingMouseX = 0;
+        pendingMouseY = 0;
+        crosshairX = Math.max(0, Math.min(arenaWidth, crosshairX + deltaX));
+        crosshairY = Math.max(0, Math.min(arenaHeight, crosshairY + deltaY));
+        crosshair.style.transform = `translate3d(${crosshairX}px, ${crosshairY}px, 0) translate(-50%, -50%)`;
+      }
+
+      window.addEventListener("resize", () => {
+        if (!active) return;
+        const bounds = arena.getBoundingClientRect();
+        arenaWidth = bounds.width;
+        arenaHeight = bounds.height;
+        crosshairX = Math.min(crosshairX, arenaWidth);
+        crosshairY = Math.min(crosshairY, arenaHeight);
+        crosshair.style.transform = `translate3d(${crosshairX}px, ${crosshairY}px, 0) translate(-50%, -50%)`;
+      });
+
+      document.addEventListener("pointerlockchange", () => {
+        if (document.pointerLockElement === arena) {
+          startButton.disabled = false;
+          ignoreMouseUntil = performance.now() + POINTER_LOCK_SETTLE_MS;
+          startRound();
+          status.textContent = rawInputRequested
+            ? "訓練中 — 原始滑鼠輸入"
+            : "訓練中 — 一般滑鼠輸入（可能受系統加速影響）";
+        } else if (active) {
+          ignoreMouseUntil = 0;
+          finishRound(true);
+        }
+      });
+      document.addEventListener("pointerlockerror", () => handlePointerLockError());
+      dpiInput.addEventListener("input", updateEdpi);
+      sensitivityInput.addEventListener("input", updateEdpi);
+      dpiInput.addEventListener("change", storeSettings);
+      sensitivityInput.addEventListener("change", storeSettings);
+      startButton.addEventListener("click", requestAim);
       document.addEventListener("keydown", (event) => {
         if (event.key === "Escape" && active) finishRound(true);
       });
