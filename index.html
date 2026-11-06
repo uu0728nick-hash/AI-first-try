@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090d18">
+  <title>瞄準實驗室 — Aim Trainer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Segoe UI", "Noto Sans TC", sans-serif;
+      background: #090d18;
+      color: #f3f5ff;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+      --muted: #8d96ad;
+      --cyan: #62f4dc;
+      --panel: rgba(18, 24, 40, .88);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-width: 320px;
+      min-height: 100vh;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(ellipse at 50% 42%, rgba(32, 57, 82, .25), transparent 55%),
+        linear-gradient(135deg, #090d18, #101525 55%, #0a101c);
+    }
+
+    button { font: inherit; }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      padding: 26px clamp(18px, 4vw, 58px) 20px;
+    }
+
+    .topbar, .brand, .stats, .stat, .bottom-bar {
+      display: flex;
+      align-items: center;
+    }
+
+    .topbar { justify-content: space-between; }
+    .brand { gap: 12px; }
+
+    .brand-mark {
+      display: grid;
+      width: 38px;
+      height: 38px;
+      place-items: center;
+      border: 1px solid rgba(98, 244, 220, .45);
+      border-radius: 12px;
+      color: var(--cyan);
+      background: rgba(98, 244, 220, .08);
+      font-size: 19px;
+      font-weight: 800;
+    }
+
+    .brand-name { font-size: 14px; font-weight: 800; letter-spacing: .14em; }
+    .brand-sub { margin-top: 3px; color: var(--muted); font-size: 10px; letter-spacing: .18em; }
+    .session-tag { color: #8993a9; font-size: 11px; letter-spacing: .14em; }
+
+    .stats {
+      justify-content: center;
+      gap: clamp(24px, 5vw, 76px);
+      margin-top: 30px;
+    }
+
+    .stat { min-width: 84px; flex-direction: column; gap: 5px; }
+    .stat-label { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .16em; }
+    .stat-value { font-size: clamp(21px, 3vw, 29px); font-weight: 750; font-variant-numeric: tabular-nums; }
+    .stat-value.timer { color: var(--cyan); }
+
+    .arena {
+      position: relative;
+      flex: 1;
+      min-height: 270px;
+      margin: 22px 0 15px;
+      overflow: hidden;
+      border: 1px solid rgba(140, 158, 191, .19);
+      border-radius: 19px;
+      background:
+        linear-gradient(rgba(141, 160, 194, .045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(141, 160, 194, .045) 1px, transparent 1px),
+        radial-gradient(ellipse at center, rgba(37, 56, 79, .29), rgba(11, 16, 29, .72) 75%);
+      background-size: 40px 40px, 40px 40px, auto;
+      box-shadow: inset 0 0 80px rgba(0, 0, 0, .22), 0 18px 70px rgba(0, 0, 0, .15);
+      cursor: crosshair;
+      isolation: isolate;
+    }
+
+    .arena::before, .arena::after {
+      position: absolute;
+      z-index: -1;
+      content: "";
+      pointer-events: none;
+    }
+
+    .arena::before {
+      inset: 14px;
+      border: 1px solid rgba(145, 161, 189, .08);
+      border-radius: 11px;
+    }
+
+    .arena::after {
+      inset: 50% auto auto 50%;
+      width: 1px;
+      height: 30px;
+      background: rgba(98, 244, 220, .12);
+      box-shadow: 0 0 45px 20px rgba(98, 244, 220, .035);
+    }
+
+    .arena.is-playing { cursor: crosshair; }
+    .arena.is-playing, .arena.is-playing * { user-select: none; }
+
+    .target {
+      position: absolute;
+      display: grid;
+      width: var(--size);
+      height: var(--size);
+      padding: 0;
+      place-items: center;
+      transform: translate(-50%, -50%);
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      cursor: crosshair;
+      animation: target-in .13s ease-out both;
+      touch-action: manipulation;
+    }
+
+    .target-ring {
+      position: absolute;
+      inset: 0;
+      border: 2px solid rgba(98, 244, 220, .9);
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(98, 244, 220, .08) 0 33%, transparent 35%);
+      box-shadow: 0 0 17px rgba(98, 244, 220, .2), inset 0 0 14px rgba(98, 244, 220, .1);
+      transition: transform .08s ease;
+    }
+
+    .target-ring::before, .target-ring::after {
+      position: absolute;
+      inset: 15%;
+      border: 1px solid rgba(98, 244, 220, .58);
+      border-radius: 50%;
+      content: "";
+    }
+
+    .target-ring::after { inset: 38%; border-color: rgba(98, 244, 220, .88); background: var(--cyan); }
+    .target:hover .target-ring { transform: scale(1.07); }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 22px;
+      background: rgba(8, 12, 22, .39);
+      backdrop-filter: blur(3px);
+    }
+
+    .overlay[hidden] { display: none; }
+    .card { width: min(100%, 440px); text-align: center; }
+    .eyebrow { color: var(--cyan); font-size: 10px; font-weight: 800; letter-spacing: .25em; }
+    h1 { margin: 13px 0 10px; font-size: clamp(29px, 5vw, 43px); letter-spacing: -.04em; }
+    .description { max-width: 335px; margin: 0 auto; color: #a4aec1; font-size: 13px; line-height: 1.8; }
+    .primary-button {
+      min-width: 190px;
+      margin-top: 24px;
+      padding: 14px 22px;
+      border: 0;
+      border-radius: 10px;
+      color: #071411;
+      background: var(--cyan);
+      box-shadow: 0 8px 26px rgba(98, 244, 220, .17);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 850;
+      letter-spacing: .08em;
+      transition: transform .15s, box-shadow .15s, background .15s;
+    }
+
+    .primary-button:hover { transform: translateY(-2px); background: #83ffe9; box-shadow: 0 12px 30px rgba(98, 244, 220, .26); }
+    .primary-button:focus-visible { outline: 2px solid white; outline-offset: 4px; }
+    .result-grid { display: flex; justify-content: center; gap: 34px; margin: 22px 0 0; }
+    .result-grid strong { display: block; margin-top: 6px; font-size: 22px; }
+    .result-grid span { color: var(--muted); font-size: 10px; letter-spacing: .13em; }
+    .best-note { min-height: 16px; margin-top: 14px; color: #f4ca70; font-size: 11px; }
+
+    .progress-track { height: 3px; overflow: hidden; background: rgba(255, 255, 255, .08); }
+    .progress { width: 100%; height: 100%; background: linear-gradient(90deg, #62f4dc, #9affb0); transform-origin: left; }
+    .bottom-bar { justify-content: space-between; min-height: 24px; color: #758097; font-size: 10px; letter-spacing: .08em; }
+    .bottom-bar kbd { padding: 3px 6px; border: 1px solid rgba(154, 168, 194, .23); border-radius: 4px; color: #a9b3c6; font: inherit; }
+    .hint { display: flex; align-items: center; gap: 7px; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+    .hit-flash { position: absolute; z-index: 4; width: 12px; height: 12px; border: 2px solid var(--cyan); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; animation: flash .3s ease-out forwards; }
+    .miss-flash { position: absolute; z-index: 4; color: #ff7185; font-size: 19px; font-weight: 700; transform: translate(-50%, -50%); pointer-events: none; animation: miss .35s ease-out forwards; }
+
+    @keyframes target-in { from { opacity: 0; scale: .65; } to { opacity: 1; scale: 1; } }
+    @keyframes flash { to { opacity: 0; scale: 3.2; } }
+    @keyframes miss { to { opacity: 0; translate: 0 -12px; } }
+
+    @media (max-width: 540px) {
+      .app { padding: 18px 14px 14px; }
+      .stats { gap: 14px; margin-top: 24px; }
+      .stat { min-width: 65px; }
+      .stat-label { font-size: 8px; }
+      .session-tag { font-size: 9px; }
+      .arena { margin-top: 17px; }
+      .bottom-bar { font-size: 9px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">◎</div>
+        <div>
+          <div class="brand-name">AIM LAB</div>
+          <div class="brand-sub">瞄準訓練場</div>
+        </div>
+      </div>
+      <div class="session-tag">訓練模式&nbsp; / &nbsp;靜態目標</div>
+    </header>
+
+    <section class="stats" aria-label="本局統計">
+      <div class="stat"><span class="stat-label">剩餘時間</span><span class="stat-value timer" id="time">30.0</span></div>
+      <div class="stat"><span class="stat-label">命中數</span><span class="stat-value" id="hits">0</span></div>
+      <div class="stat"><span class="stat-label">準確率</span><span class="stat-value" id="accuracy">—</span></div>
+      <div class="stat"><span class="stat-label">每分鐘命中</span><span class="stat-value" id="rate">0</span></div>
+    </section>
+
+    <section class="arena" id="arena" aria-label="瞄準訓練區">
+      <div class="overlay" id="overlay">
+        <div class="card">
+          <div class="eyebrow" id="eyebrow">READY WHEN YOU ARE</div>
+          <h1 id="headline">準備好瞄準了嗎？</h1>
+          <p class="description" id="description">在 30 秒內盡可能命中目標。快速、精準，找回你的手感。</p>
+          <div class="result-grid" id="results" hidden></div>
+          <div class="best-note" id="best-note"></div>
+          <button class="primary-button" id="start-button" type="button">開始訓練&nbsp; →</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="progress-track" aria-hidden="true"><div class="progress" id="progress"></div></div>
+    <footer class="bottom-bar">
+      <div class="hint"><span class="dot"></span><span id="status">準備就緒</span></div>
+      <div><kbd>點擊</kbd> 命中目標 <span aria-hidden="true">&nbsp;·&nbsp;</span> <kbd>Esc</kbd> 中止</div>
+    </footer>
+  </main>
+  <script>
+    (() => {
+      const ROUND_MS = 30_000;
+      const TARGET_LIFETIME_MS = 1_800;
+      const arena = document.querySelector("#arena");
+      const overlay = document.querySelector("#overlay");
+      const startButton = document.querySelector("#start-button");
+      const timeDisplay = document.querySelector("#time");
+      const hitsDisplay = document.querySelector("#hits");
+      const accuracyDisplay = document.querySelector("#accuracy");
+      const rateDisplay = document.querySelector("#rate");
+      const progress = document.querySelector("#progress");
+      const status = document.querySelector("#status");
+      const headline = document.querySelector("#headline");
+      const eyebrow = document.querySelector("#eyebrow");
+      const description = document.querySelector("#description");
+      const results = document.querySelector("#results");
+      const bestNote = document.querySelector("#best-note");
+
+      let active = false;
+      let startedAt = 0;
+      let hits = 0;
+      let misses = 0;
+      let targetTimer = 0;
+      let frame = 0;
+      let target = null;
+      let best = loadBest();
+
+      function loadBest() {
+        try {
+          const value = Number(localStorage.getItem("aim-lab-best") || 0);
+          return Number.isFinite(value) && value >= 0 ? value : 0;
+        } catch (error) {
+          console.warn("無法讀取本機最佳紀錄。", error);
+          return 0;
+        }
+      }
+
+      function saveBest(value) {
+        try {
+          localStorage.setItem("aim-lab-best", String(value));
+        } catch (error) {
+          console.warn("無法儲存本機最佳紀錄。", error);
+        }
+      }
+
+      function updateStats(remainingMs) {
+        const elapsedMs = Math.max(0, ROUND_MS - remainingMs);
+        const attempts = hits + misses;
+        timeDisplay.textContent = (remainingMs / 1000).toFixed(1);
+        hitsDisplay.textContent = String(hits);
+        accuracyDisplay.textContent = attempts ? `${Math.round(hits / attempts * 100)}%` : "—";
+        rateDisplay.textContent = elapsedMs ? String(Math.round(hits * 60_000 / elapsedMs)) : "0";
+        progress.style.transform = `scaleX(${Math.max(0, remainingMs / ROUND_MS)})`;
+      }
+
+      function placeTarget() {
+        if (!active) return;
+        if (target) target.remove();
+        const bounds = arena.getBoundingClientRect();
+        const size = Math.round(Math.max(34, Math.min(54, bounds.width * .075)));
+        const padding = size / 2 + 20;
+        const x = padding + Math.random() * Math.max(1, bounds.width - padding * 2);
+        const y = padding + Math.random() * Math.max(1, bounds.height - padding * 2);
+        target = document.createElement("button");
+        target.type = "button";
+        target.className = "target";
+        target.style.setProperty("--size", `${size}px`);
+        target.style.left = `${x}px`;
+        target.style.top = `${y}px`;
+        target.setAttribute("aria-label", "命中目標");
+        target.innerHTML = '<span class="target-ring" aria-hidden="true"></span>';
+        target.addEventListener("click", (event) => {
+          event.stopPropagation();
+          if (!active) return;
+          hits += 1;
+          showFeedback(event.clientX, event.clientY, true);
+          updateStats(Math.max(0, ROUND_MS - (performance.now() - startedAt)));
+          target.remove();
+          target = null;
+          clearTimeout(targetTimer);
+          placeTarget();
+        }, { once: true });
+        arena.append(target);
+        targetTimer = window.setTimeout(() => {
+          if (!active || !target) return;
+          misses += 1;
+          target.remove();
+          target = null;
+          updateStats(Math.max(0, ROUND_MS - (performance.now() - startedAt)));
+          placeTarget();
+        }, TARGET_LIFETIME_MS);
+      }
+
+      function showFeedback(clientX, clientY, isHit) {
+        const rect = arena.getBoundingClientRect();
+        const mark = document.createElement("span");
+        mark.className = isHit ? "hit-flash" : "miss-flash";
+        mark.textContent = isHit ? "" : "×";
+        mark.style.left = `${clientX - rect.left}px`;
+        mark.style.top = `${clientY - rect.top}px`;
+        arena.append(mark);
+        window.setTimeout(() => mark.remove(), 400);
+      }
+
+      function tick(now) {
+        if (!active) return;
+        const remaining = Math.max(0, ROUND_MS - (now - startedAt));
+        updateStats(remaining);
+        if (remaining <= 0) {
+          finishRound();
+          return;
+        }
+        frame = requestAnimationFrame(tick);
+      }
+
+      function startRound() {
+        active = true;
+        hits = 0;
+        misses = 0;
+        startedAt = performance.now();
+        overlay.hidden = true;
+        arena.classList.add("is-playing");
+        status.textContent = "訓練中 — 保持專注";
+        updateStats(ROUND_MS);
+        placeTarget();
+        frame = requestAnimationFrame(tick);
+      }
+
+      function finishRound(aborted = false) {
+        if (!active) return;
+        active = false;
+        cancelAnimationFrame(frame);
+        clearTimeout(targetTimer);
+        if (target) target.remove();
+        target = null;
+        arena.classList.remove("is-playing");
+        const attempts = hits + misses;
+        const accuracy = attempts ? Math.round(hits / attempts * 100) : 0;
+        const newRecord = hits > best;
+        if (newRecord) {
+          best = hits;
+          saveBest(best);
+        }
+        updateStats(aborted ? Math.max(0, ROUND_MS - (performance.now() - startedAt)) : 0);
+        headline.textContent = aborted ? "訓練已中止" : "訓練完成！";
+        eyebrow.textContent = aborted ? "SESSION ENDED" : "SESSION COMPLETE";
+        description.textContent = aborted ? "這次先到這裡。隨時可以再挑戰一次。" : "做得好！穩定練習，持續突破自己的紀錄。";
+        results.hidden = false;
+        results.innerHTML = `<div><span>命中數</span><strong>${hits}</strong></div><div><span>準確率</span><strong>${accuracy}%</strong></div><div><span>每分鐘命中</span><strong>${Math.round(hits * 60_000 / Math.max(1, ROUND_MS - (aborted ? performance.now() - startedAt : 0)))}</strong></div>`;
+        bestNote.textContent = newRecord ? "✦ 新紀錄！已儲存在這台裝置" : best ? `個人最佳：${best} 次命中` : "";
+        startButton.textContent = "再練一局　→";
+        status.textContent = aborted ? "訓練已中止" : "訓練結束";
+        overlay.hidden = false;
+        startButton.focus();
+      }
+
+      arena.addEventListener("click", (event) => {
+        if (!active || event.target.closest(".target")) return;
+        misses += 1;
+        showFeedback(event.clientX, event.clientY, false);
+        updateStats(Math.max(0, ROUND_MS - (performance.now() - startedAt)));
+      });
+
+      startButton.addEventListener("click", startRound);
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && active) finishRound(true);
+      });
+    })();
+  </script>
+</body>
+</html>
